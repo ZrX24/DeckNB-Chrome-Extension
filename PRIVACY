@@ -1,0 +1,17 @@
+# Privacy Policy for Balatro Casino Deckbuilder
+
+**Last updated:** October 14, 2026
+
+Balatro Casino Deckbuilder ("the Extension") is a rogue-like poker deck-building game designed to run locally as a Google Chrome extension. 
+
+## 1. Information We Do Not Collect
+We **do not** collect, store, transmit, or share any personal information, user data, browsing history, telemetry, or analytics. 
+
+## 2. Local Storage
+The Extension uses Chrome's local storage API (`chrome.storage.local`) solely to save your in-game progress, wins, unlocked global meta-upgrades, and current run statistics. This data never leaves your local device and is not accessible by the developer or any third parties.
+
+## 3. External Links & Third Parties
+The Extension does not load any external scripts, third-party libraries, or web trackers. All assets (HTML, JavaScript, CSS, icons) are packaged locally within the extension.
+
+## 4. Contact
+If you have any questions or concerns regarding this Privacy Policy, please open an issue on our GitHub repository.
