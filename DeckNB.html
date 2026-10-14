@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balatro Casino Rogue Deckbuilder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        casino: ['Cinzel', 'serif'],
+                        outfit: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        feltDark: '#071f11',
+                        feltMedium: '#0d2e1b',
+                        feltLight: '#16482b',
+                        feltAccent: '#1f5e38',
+                        goldMain: '#e5ac37',
+                        goldLight: '#fcd875',
+                        goldDark: '#996e19',
+                        chipBlue: '#2563eb',
+                        multRed: '#dc2626',
+                        cardBg: '#faf7f2',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #030a05;
+            font-family: 'Outfit', sans-serif;
+            color: #f3f4f6;
+            user-select: none;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Classic Felt Green Table Texture */
+        .felt-table {
+            background-color: #0c2b18;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(31, 94, 56, 0.55) 0%, rgba(13, 46, 27, 0.9) 70%, rgba(7, 31, 17, 0.98) 100%),
+                radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 0);
+            background-size: 100% 100%, 14px 14px;
+            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.85), 0 0 0 10px #422610, 0 0 0 16px #1f1106, 0 20px 40px rgba(0,0,0,0.95);
+        }
+
+        .gold-border {
+            border: 2px solid #e5ac37;
+            box-shadow: 0 0 12px rgba(229, 172, 55, 0.3), inset 0 0 8px rgba(229, 172, 55, 0.2);
+        }
+
+        .gold-gradient-text {
+            background: linear-gradient(180deg, #fcd875 0%, #e5ac37 60%, #996e19 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* CRT Overlay Effect */
+        .crt-scanlines::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            z-index: 90;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        /* Floating Score Animations */
+        @keyframes popUpText {
+            0% { transform: translateY(0) scale(0.8); opacity: 1; }
+            50% { transform: translateY(-25px) scale(1.3); }
+            100% { transform: translateY(-45px) scale(1); opacity: 0; }
+        }
+        .float-score {
+            animation: popUpText 0.7s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+        }
+
+        /* Card Visuals & Animations */
+        .card-container {
+            perspective: 1000px;
+            transition: transform 0.2s ease;
+        }
+
+        .card-inner {
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+            transform-style: preserve-3d;
+        }
+
+        .card-hover:hover .card-inner {
+            transform: translateY(-16px) rotateX(4deg) scale(1.06);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 0 15px rgba(229, 172, 55, 0.4);
+        }
+
+        .card-selected .card-inner {
+            transform: translateY(-30px) scale(1.1) !important;
+            box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.8), 0 0 20px #fcd875, 0 0 10px #e5ac37 !important;
+        }
+
+        .card-debuffed {
+            filter: grayscale(0.9) brightness(0.5);
+            position: relative;
+        }
+        .card-debuffed::after {
+            content: "🚫";
+            position: absolute;
+            font-size: 1.6rem;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes cardTriggerAnim {
+            0% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-22px) scale(1.18); filter: brightness(1.4); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        .card-trigger {
+            animation: cardTriggerAnim 0.35s ease-out;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #071f11; }
+        ::-webkit-scrollbar-thumb { background: #e5ac37; border-radius: 4px; }
+    </style>
+</head>
+<body id="body-root" class="flex flex-col items-center justify-between p-2 sm:p-4 crt-scanlines selection:bg-goldMain selection:text-black">
+
+    <!-- Header Section -->
+    <header class="w-full max-w-5xl mb-3 flex flex-wrap items-center justify-between gap-2 bg-feltDark/95 border-2 border-goldDark/70 rounded-2xl p-3 shadow-2xl backdrop-blur-md z-10">
+        <div class="flex items-center space-x-3">
+            <div class="w-11 h-11 rounded-xl bg-gradient-to-b from-goldLight via-goldMain to-goldDark flex items-center justify-center font-casino font-black text-2xl text-black shadow-lg border border-goldLight">
+                ♣
+            </div>
+            <div>
+                <h1 class="font-casino font-black text-xl tracking-wider gold-gradient-text leading-none">BALATRO CASINO ROGUE</h1>
+                <p class="text-[10px] text-emerald-400 font-bold tracking-widest uppercase mt-0.5" id="stake-indicator">Stake: White (Normal)</p>
+            </div>
+        </div>
+
+        <!-- Run Indicators -->
+        <div class="flex items-center gap-2 sm:gap-3 text-xs font-bold">
+            <div class="bg-black/70 border border-goldDark/50 px-3 py-1.5 rounded-xl text-center">
+                <span class="text-[9px] text-goldMain/80 block uppercase tracking-wider">Ante / Blind</span>
+                <span id="stat-ante" class="text-sm text-white font-black">1/8 (Small)</span>
+            </div>
+            <div class="bg-black/70 border border-goldDark/50 px-3 py-1.5 rounded-xl text-center">
+                <span class="text-[9px] text-amber-400 block uppercase tracking-wider">Cash</span>
+                <span id="stat-money" class="text-sm text-amber-300 font-black">$4</span>
+            </div>
+            <div class="bg-black/70 border border-goldDark/50 px-3 py-1.5 rounded-xl text-center">
+                <span class="text-[9px] text-cyan-300 block uppercase tracking-wider">Hands / Discards</span>
+                <span id="stat-actions" class="text-sm text-cyan-200 font-black">4 / 3</span>
+            </div>
+        </div>
+
+        <!-- Top Utility Actions -->
+        <div class="flex items-center space-x-1.5">
+            <button onclick="openModal('modal-console')" title="Cheat Console" class="px-2.5 py-1.5 bg-amber-950/80 hover:bg-amber-900 border border-amber-600/50 rounded-xl text-xs font-bold text-amber-300 transition shadow">
+                💻
+            </button>
+            <button onclick="openModal('modal-deck')" class="px-2.5 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600/50 rounded-xl text-xs font-bold text-emerald-200 transition flex items-center gap-1 shadow">
+                🂠 <span id="deck-count-btn">52</span>
+            </button>
+            <button onclick="openModal('modal-guide')" class="px-2.5 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600/50 rounded-xl text-xs font-bold text-emerald-200 transition shadow">
+                📜 Guide
+            </button>
+            <button onclick="toggleCRT()" title="Toggle Scanlines" class="p-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600/50 rounded-xl text-xs font-bold text-emerald-200 transition shadow">
+                📺
+            </button>
+            <button onclick="toggleAudio()" id="btn-audio" class="p-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600/50 rounded-xl text-xs font-bold text-emerald-200 transition shadow">
+                🔊
+            </button>
+            <button onclick="openModal('modal-menu')" title="Main Menu" class="p-1.5 bg-red-950 hover:bg-red-900 border border-red-600/50 rounded-xl text-xs font-bold text-red-200 transition shadow">
+                ⚙️
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Table Area -->
+    <main class="w-full max-w-5xl felt-table border-4 border-goldDark/80 rounded-3xl p-3 sm:p-5 flex flex-col justify-between gap-3 shadow-2xl relative min-h-[580px] z-10">
+
+        <!-- Floating Particles Layer -->
+        <div id="floating-effects-layer" class="absolute inset-0 pointer-events-none overflow-hidden z-30"></div>
+
+        <!-- Top Row: Target Board & Active Passive Jokers -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch">
+            
+            <!-- Target Score Board -->
+            <div class="md:col-span-4 bg-black/80 border-2 border-goldDark/70 rounded-2xl p-3 flex flex-col justify-between shadow-xl">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span id="blind-name" class="text-xs font-black uppercase tracking-widest text-goldLight">Small Blind</span>
+                        <span id="boss-badge" class="hidden text-[9px] bg-red-900 text-red-200 px-2 py-0.5 rounded-full font-bold border border-red-500 animate-pulse">BOSS</span>
+                    </div>
+                    <div class="text-xs text-slate-300 font-semibold mb-2" id="blind-desc">Score at least target to pass.</div>
+                </div>
+
+                <div class="bg-feltDark/90 border border-goldDark/50 rounded-xl p-2 text-center">
+                    <span class="text-[9px] text-emerald-400 font-bold tracking-wider block uppercase">Score Target</span>
+                    <span id="target-score" class="font-casino text-2xl font-black text-white">300</span>
+                </div>
+
+                <div class="mt-2 bg-black/90 border border-goldMain/40 rounded-xl p-2 text-center">
+                    <span class="text-[9px] text-amber-300 font-bold tracking-wider block uppercase">Current Round Score</span>
+                    <span id="current-score" class="font-casino text-3xl font-black text-amber-400 leading-none">0</span>
+                </div>
+            </div>
+
+            <!-- Jokers Slots Container -->
+            <div class="md:col-span-8 bg-black/50 border border-emerald-600/40 rounded-2xl p-3 flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-1.5">
+                    <span class="text-xs font-bold uppercase tracking-wider text-goldMain flex items-center gap-1">
+                        🃏 Active Jokers (<span id="joker-count">0</span>/<span id="joker-max-cap">5</span>)
+                    </span>
+                    <span class="text-[10px] text-emerald-300">Provides active passive multipliers</span>
+                </div>
+
+                <div id="jokers-container" class="flex gap-2 overflow-x-auto py-1 min-h-[100px] items-center">
+                    <!-- Jokers populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Played Hand Slot & Live Calculation Bar -->
+        <div class="bg-black/70 border-2 border-goldDark/50 rounded-2xl p-3 flex flex-col items-center justify-center relative min-h-[145px] shadow-inner">
+            
+            <!-- Live Calculated Chip x Mult Banner -->
+            <div id="scoring-calculator-bar" class="flex items-center gap-3 bg-black/95 border border-goldMain/60 px-5 py-1.5 rounded-full shadow-2xl mb-2">
+                <div id="hand-type-name" class="font-casino text-xs font-bold text-goldLight tracking-wider uppercase border-r border-goldDark/40 pr-3">
+                    Select Cards
+                </div>
+
+                <!-- Chips Badge -->
+                <div class="flex items-center space-x-1.5 bg-blue-950/90 border border-chipBlue px-3 py-0.5 rounded-lg">
+                    <span class="text-chipBlue font-black text-sm">🔵</span>
+                    <span id="calc-chips" class="text-blue-200 font-bold text-base">0</span>
+                </div>
+
+                <span class="text-goldMain font-black text-sm">✕</span>
+
+                <!-- Mult Badge -->
+                <div class="flex items-center space-x-1.5 bg-red-950/90 border border-multRed px-3 py-0.5 rounded-lg">
+                    <span class="text-multRed font-black text-sm">🔥</span>
+                    <span id="calc-mult" class="text-red-200 font-bold text-base">0</span>
+                </div>
+            </div>
+
+            <!-- Played Cards Animation Slot -->
+            <div id="played-cards-slot" class="flex justify-center items-center gap-2 min-h-[90px] w-full">
+                <span class="text-emerald-300/40 text-xs italic">Select up to 5 cards from your hand to play</span>
+            </div>
+        </div>
+
+        <!-- Player Hand Section -->
+        <div class="flex flex-col gap-1.5">
+            <div class="flex justify-between items-center px-2 text-xs">
+                <span class="font-bold text-emerald-200 uppercase tracking-wider">YOUR HAND (<span id="hand-count-indicator">8</span>/<span id="hand-max-indicator">8</span>)</span>
+                <div class="space-x-2">
+                    <button onclick="sortHand('suit')" class="bg-black/70 hover:bg-black border border-emerald-600/60 px-2.5 py-1 rounded-lg text-emerald-300 text-[11px] font-semibold transition">Sort Suit</button>
+                    <button onclick="sortHand('rank')" class="bg-black/70 hover:bg-black border border-emerald-600/60 px-2.5 py-1 rounded-lg text-emerald-300 text-[11px] font-semibold transition">Sort Rank</button>
+                </div>
+            </div>
+
+            <!-- Hand Cards Flex Container -->
+            <div id="player-hand-container" class="flex justify-center items-center gap-1.5 sm:gap-2.5 min-h-[135px] pt-2 pb-1 overflow-x-auto">
+                <!-- Cards generated dynamically -->
+            </div>
+        </div>
+
+        <!-- Action Buttons Bar -->
+        <div class="flex flex-wrap items-center justify-center gap-4 pt-1">
+            <button id="btn-play" onclick="playHand()" disabled class="px-8 py-3 bg-gradient-to-b from-amber-400 via-goldMain to-goldDark hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-black font-casino font-black rounded-2xl shadow-xl border border-goldLight/50 text-sm tracking-wider uppercase transition transform active:scale-95">
+                Play Hand
+            </button>
+            <button id="btn-discard" onclick="discardCards()" disabled class="px-8 py-3 bg-gradient-to-b from-red-900 to-red-950 hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed text-red-200 font-casino font-bold rounded-2xl shadow-xl border border-red-600/40 text-sm tracking-wider uppercase transition transform active:scale-95">
+                Discard Selected
+            </button>
+        </div>
+
+    </main>
+
+    <!-- MAIN MENU & DIFFICULTY & GLOBAL META SHOP MODAL -->
+    <div id="modal-menu" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-6">
+        <div class="bg-feltMedium border-4 border-goldDark rounded-3xl p-5 max-w-3xl w-full shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-goldDark/50 pb-3 mb-4">
+                <div>
+                    <h2 class="font-casino text-3xl font-black gold-gradient-text">CASINO MAIN MENU</h2>
+                    <p class="text-xs text-emerald-300">Select Difficulty Stake & Persistent Meta Upgrades</p>
+                </div>
+                <div class="bg-black/80 border border-goldMain/50 px-4 py-2 rounded-xl text-right">
+                    <span class="text-[10px] text-amber-400 block uppercase font-bold">Persistent Wins</span>
+                    <span id="global-wins-count" class="text-2xl font-black text-amber-300">0 🏆</span>
+                </div>
+            </div>
+
+            <!-- Stake Selection -->
+            <div class="mb-5">
+                <h3 class="font-casino text-sm font-bold text-goldLight uppercase mb-2">1. Choose Stake / Difficulty:</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="stake-selection-grid">
+                    <!-- Dynamic Stake Options -->
+                </div>
+            </div>
+
+            <!-- Global Meta Shop Upgrades -->
+            <div class="mb-5">
+                <h3 class="font-casino text-sm font-bold text-goldLight uppercase mb-2">2. Global Meta Upgrades (Purchased with Wins):</h3>
+                <div id="meta-upgrades-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-3 border-t border-goldDark/50">
+                <button onclick="closeModal('modal-menu')" class="px-5 py-2.5 bg-black/70 hover:bg-black border border-goldDark text-amber-300 rounded-xl text-xs font-bold transition">
+                    Resume Game
+                </button>
+                <button onclick="startNewRunWithStake()" class="px-8 py-3 bg-gradient-to-b from-amber-400 via-goldMain to-goldDark hover:brightness-110 text-black font-casino font-black rounded-xl text-sm border border-goldLight shadow-xl">
+                    Start Run →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shop Phase Modal -->
+    <div id="modal-shop" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-6">
+        <div class="bg-feltMedium border-4 border-goldDark rounded-3xl p-5 max-w-4xl w-full shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-goldDark/50 pb-3 mb-4">
+                <div>
+                    <h2 class="font-casino text-2xl font-black gold-gradient-text">CASINO SHOP</h2>
+                    <p class="text-xs text-emerald-300">Buy Jokers, Planet Level-Ups, Booster Packs & Targeted 3x Specials</p>
+                </div>
+                <div class="bg-black/90 border border-goldMain/60 px-4 py-2 rounded-xl text-right">
+                    <span class="text-[10px] text-amber-400 block uppercase font-bold">Player Cash</span>
+                    <span id="shop-money" class="text-2xl font-black text-amber-300">$0</span>
+                </div>
+            </div>
+
+            <!-- Special Shop Purchases Row -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <!-- Random Mystery Box -->
+                <div class="bg-purple-950/80 border-2 border-purple-500 rounded-2xl p-3 flex flex-col justify-between items-center text-center">
+                    <div>
+                        <span class="text-2xl">🎁</span>
+                        <h4 class="font-bold text-xs text-purple-200 mt-1">Mystery Joker Box</h4>
+                        <p class="text-[9px] text-purple-300 mt-0.5">Heavy discount! Grants 1 random joker.</p>
+                    </div>
+                    <button onclick="buyMysteryBox()" class="mt-2 w-full py-1.5 bg-gradient-to-b from-purple-500 to-purple-800 text-white font-bold rounded-xl text-xs hover:brightness-110">
+                        Buy Mystery ($3)
+                    </button>
+                </div>
+
+                <!-- Targeted Joker Reserve Slot (3x Price) -->
+                <div class="bg-amber-950/80 border-2 border-amber-500 rounded-2xl p-3 flex flex-col justify-between items-center text-center">
+                    <div>
+                        <span class="text-2xl">👑</span>
+                        <h4 class="font-bold text-xs text-amber-200 mt-1">Targeted Guarantee Slot</h4>
+                        <p class="text-[9px] text-amber-300 mt-0.5">Choose 1 specific joker from catalog at 3x price!</p>
+                    </div>
+                    <button onclick="openTargetedJokerSelector()" class="mt-2 w-full py-1.5 bg-gradient-to-b from-amber-500 to-amber-800 text-black font-bold rounded-xl text-xs hover:brightness-110">
+                        Select Targeted
+                    </button>
+                </div>
+
+                <!-- Reroll Section -->
+                <div class="bg-black/70 border-2 border-goldDark/60 rounded-2xl p-3 flex flex-col justify-between items-center text-center">
+                    <div>
+                        <span class="text-2xl">🔄</span>
+                        <h4 class="font-bold text-xs text-goldLight mt-1">Reroll Inventory</h4>
+                        <p class="text-[9px] text-slate-300 mt-0.5">Refreshes normal shop cards.</p>
+                    </div>
+                    <button onclick="rerollShop()" id="btn-reroll-shop" class="mt-2 w-full py-1.5 bg-black hover:bg-slate-900 border border-goldDark text-amber-300 font-bold rounded-xl text-xs transition">
+                        Reroll ($5)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Shop Items Grid -->
+            <div id="shop-items-grid" class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-5">
+                <!-- Populated via JS -->
+            </div>
+
+            <div class="flex justify-between items-center pt-3 border-t border-goldDark/50">
+                <span class="text-xs text-emerald-300 font-semibold" id="shop-interest-note">Interest Earned: $0</span>
+                <button onclick="advanceBlindFromShop()" class="px-8 py-3 bg-gradient-to-b from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white font-casino font-bold rounded-2xl text-sm border border-emerald-400 shadow-lg uppercase tracking-wider">
+                    Next Round →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Targeted Joker Selector Modal -->
+    <div id="modal-targeted" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-feltDark border-2 border-goldDark rounded-3xl p-5 max-w-2xl w-full shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-3 border-b border-goldDark/50 pb-2">
+                <h3 class="font-casino text-lg font-bold text-goldLight">Select Targeted Joker (3x Premium Price)</h3>
+                <button onclick="closeModal('modal-targeted')" class="text-emerald-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+            <div id="targeted-jokers-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <!-- Dynamically generated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Secret Console Modal -->
+    <div id="modal-console" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-black border-2 border-amber-500/80 rounded-3xl p-5 max-w-md w-full shadow-2xl font-mono">
+            <div class="flex justify-between items-center mb-3 border-b border-amber-500/30 pb-2">
+                <h3 class="text-amber-400 font-bold text-sm">💻 SECRET CHEAT CONSOLE</h3>
+                <button onclick="closeModal('modal-console')" class="text-amber-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <p class="text-slate-400">Available commands:</p>
+                <ul class="text-[11px] text-amber-300 space-y-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <li>• <b class="text-white">idontknowhowtoplay</b> -> +$100 Cash</li>
+                    <li>• <b class="text-white">money</b> -> Clears all cash ($0)</li>
+                    <li>• <b class="text-white">bankrupt</b> -> Lose cash & removes 1 joker</li>
+                    <li>• <b class="text-white">hardmode</b> -> Raises current blind target +50%</li>
+                    <li>• <b class="text-white">winnow</b> -> Instantly clears current blind</li>
+                </ul>
+                <div class="flex gap-2 pt-2">
+                    <input type="text" id="console-input" placeholder="Enter command..." class="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3 py-2 text-amber-200 outline-none focus:border-amber-400 text-xs">
+                    <button onclick="executeConsoleCommand()" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded-xl text-xs">Run</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deck Viewer Modal -->
+    <div id="modal-deck" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-feltDark border-2 border-goldDark rounded-3xl p-5 max-w-3xl w-full shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-3 border-b border-emerald-800/60 pb-2">
+                <h2 class="font-casino text-lg font-bold text-goldLight">Deck Composition</h2>
+                <button onclick="closeModal('modal-deck')" class="text-emerald-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+            <div id="deck-viewer-grid" class="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                <!-- Dynamically generated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Hand Guide Modal -->
+    <div id="modal-guide" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-feltDark border-2 border-goldDark rounded-3xl p-5 max-w-xl w-full shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-3 border-b border-emerald-800/60 pb-2">
+                <h2 class="font-casino text-lg font-bold text-goldLight">Poker Hands & Base Values</h2>
+                <button onclick="closeModal('modal-guide')" class="text-emerald-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+            <div id="poker-guide-list" class="space-y-2 text-xs">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over / Victory Modal -->
+    <div id="modal-gameover" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-feltMedium border-4 border-red-700 rounded-3xl p-6 max-w-md w-full text-center shadow-2xl">
+            <h2 id="gameover-title" class="font-casino text-3xl font-black text-red-500 mb-2">GAME OVER</h2>
+            <p id="gameover-desc" class="text-slate-300 text-xs mb-5">You failed to beat the Blind target score.</p>
+            <div class="bg-black/80 border border-goldDark/40 p-4 rounded-xl mb-5">
+                <span class="text-[10px] text-goldMain uppercase block font-bold">Stats Summary</span>
+                <span id="gameover-stats" class="text-lg font-bold text-white">Ante 1</span>
+            </div>
+            <button onclick="restartRun()" class="w-full py-3 bg-gradient-to-b from-goldLight via-goldMain to-goldDark hover:brightness-110 text-black font-casino font-black rounded-xl text-sm uppercase tracking-wider shadow-lg">
+                Return to Main Menu
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-box" class="fixed top-5 left-1/2 -translate-x-1/2 bg-black/95 border border-goldMain text-goldLight px-5 py-2.5 rounded-2xl shadow-2xl z-50 hidden text-xs font-bold">
+        Notification
+    </div>
+
+    <script>
+        /* --- WEB AUDIO SYNTHESIZER --- */
+        let audioCtx = null;
+        let soundEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(320, now);
+                    osc.frequency.exponentialRampToValueAtTime(650, now + 0.04);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.04);
+                    osc.start(now); osc.stop(now + 0.04);
+                } else if (type === 'card_select') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(420, now);
+                    osc.frequency.exponentialRampToValueAtTime(750, now + 0.06);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
+                    osc.start(now); osc.stop(now + 0.06);
+                } else if (type === 'score_tick') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(500 + Math.random() * 250, now);
+                    gain.gain.setValueAtTime(0.05, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now); osc.stop(now + 0.05);
+                } else if (type === 'cash') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(784, now);
+                    osc.frequency.setValueAtTime(1046, now + 0.08);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now); osc.stop(now + 0.2);
+                } else if (type === 'win') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523, now);
+                    osc.frequency.setValueAtTime(659, now + 0.1);
+                    osc.frequency.setValueAtTime(783, now + 0.2);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now); osc.stop(now + 0.4);
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function toggleAudio() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('btn-audio').innerText = soundEnabled ? '🔊' : '🔇';
+            showToast(soundEnabled ? 'Audio Enabled' : 'Audio Muted');
+        }
+
+        function toggleCRT() {
+            const root = document.getElementById('body-root');
+            root.classList.toggle('crt-scanlines');
+            showToast('Toggled Scanlines');
+        }
+
+        /* --- GAME ENGINE CONSTANTS --- */
+        const SUITS = ['♠', '♥', '♦', '♣'];
+        const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+        const POKER_HANDS = {
+            'Flush House': { chips: 140, mult: 14, lvl: 1 },
+            'Five of a Kind': { chips: 120, mult: 12, lvl: 1 },
+            'Royal Flush': { chips: 100, mult: 8, lvl: 1 },
+            'Straight Flush': { chips: 90, mult: 8, lvl: 1 },
+            'Four of a Kind': { chips: 60, mult: 7, lvl: 1 },
+            'Full House': { chips: 40, mult: 4, lvl: 1 },
+            'Flush': { chips: 35, mult: 4, lvl: 1 },
+            'Straight': { chips: 30, mult: 4, lvl: 1 },
+            'Three of a Kind': { chips: 30, mult: 3, lvl: 1 },
+            'Two Pair': { chips: 20, mult: 2, lvl: 1 },
+            'Pair': { chips: 10, mult: 2, lvl: 1 },
+            'High Card': { chips: 5, mult: 1, lvl: 1 }
+        };
+
+        const STAKES = [
+            { id: 'white', name: 'White Stake', desc: 'Normal difficulty', mult: 1.0, jokerCostMult: 1.0 },
+            { id: 'red', name: 'Red Stake', desc: 'Higher Blind scaling', mult: 1.25, jokerCostMult: 1.0 },
+            { id: 'blue', name: 'Blue Stake', desc: '-1 Hand per round', mult: 1.35, jokerCostMult: 1.0, handsMod: -1 },
+            { id: 'black', name: 'Black Stake', desc: 'Jokers cost +50% more', mult: 1.5, jokerCostMult: 1.5 },
+            { id: 'gold', name: 'Gold Stake', desc: 'Extreme Blind scaling', mult: 2.0, jokerCostMult: 1.5 }
+        ];
+
+        const META_UPGRADES = [
+            { id: 'm_mult', name: 'Base Mult +1', desc: '+1 Base Mult to all hands permanently', cost: 1, val: 1 },
+            { id: 'm_chips', name: 'Base Chips +10', desc: '+10 Base Chips to all hands permanently', cost: 1, val: 10 },
+            { id: 'm_cash', name: 'Starting Cash +$5', desc: 'Start each run with +$5 cash', cost: 2, val: 5 },
+            { id: 'm_discard', name: '+1 Discard per round', desc: '+1 Extra discard each round', cost: 3, val: 1 },
+            { id: 'm_deck', name: 'Deck Size Master', desc: '+4 extra cards added to starting deck', cost: 5, val: 4 },
+            { id: 'm_global_mult', name: 'High Roller', desc: 'Global Hand score multiplier x1.25', cost: 10, val: 1.25 },
+            { id: 'm_omnipresence', name: 'Card Count Omnipresence', desc: 'Master Key: Omnipresence card unlocked!', cost: 20, val: 1 }
+        ];
+
+        const JOKER_CATALOG = [
+            { id: 'j_base', name: 'Joker', desc: '+4 Mult', cost: 4, effect: { type: 'add_mult', val: 4 } },
+            { id: 'j_greedy', name: 'Greedy Joker', desc: '+4 Mult per played Diamond (♦)', cost: 5, effect: { type: 'suit_mult', suit: '♦', val: 4 } },
+            { id: 'j_lusty', name: 'Lusty Joker', desc: '+4 Mult per played Heart (♥)', cost: 5, effect: { type: 'suit_mult', suit: '♥', val: 4 } },
+            { id: 'j_wrathful', name: 'Wrathful Joker', desc: '+4 Mult per played Spade (♠)', cost: 5, effect: { type: 'suit_mult', suit: '♠', val: 4 } },
+            { id: 'j_gluttonous', name: 'Gluttonous Joker', desc: '+4 Mult per played Club (♣)', cost: 5, effect: { type: 'suit_mult', suit: '♣', val: 4 } },
+            { id: 'j_pair_helper', name: 'Pair Helper', desc: '+2 Mult if hand contains a Pair', cost: 5, effect: { type: 'hand_mult', hand: 'Pair', val: 2 } },
+            { id: 'j_sly', name: 'Sly Joker', desc: '+50 Chips if hand contains a Pair', cost: 5, effect: { type: 'hand_chips', hand: 'Pair', val: 50 } },
+            { id: 'j_zany', name: 'Zany Joker', desc: '+12 Mult if hand contains Three of a Kind', cost: 6, effect: { type: 'hand_mult', hand: 'Three of a Kind', val: 12 } },
+            { id: 'j_mad', name: 'Mad Joker', desc: '+20 Mult if hand contains Four of a Kind', cost: 7, effect: { type: 'hand_mult', hand: 'Four of a Kind', val: 20 } },
+            { id: 'j_crazy', name: 'Crazy Joker', desc: '+12 Mult if hand contains a Straight', cost: 6, effect: { type: 'hand_mult', hand: 'Straight', val: 12 } },
+            { id: 'j_droll', name: 'Droll Joker', desc: '+10 Mult if hand contains a Flush', cost: 6, effect: { type: 'hand_mult', hand: 'Flush', val: 10 } },
+            { id: 'j_half', name: 'Half Joker', desc: '+20 Mult if hand contains 3 or fewer cards', cost: 6, effect: { type: 'half', val: 20 } },
+            { id: 'j_banner', name: 'Banner', desc: '+40 Chips for each remaining Discard', cost: 6, effect: { type: 'banner', val: 40 } },
+            { id: 'j_bull', name: 'Bull', desc: '+2 Chips for each $1 you have', cost: 6, effect: { type: 'bull', val: 2 } },
+            { id: 'j_popcorn', name: 'Popcorn', desc: '+20 Mult, loses 4 Mult each round', cost: 5, multRemaining: 20, effect: { type: 'popcorn' } },
+            { id: 'j_ice_cream', name: 'Ice Cream', desc: '+100 Chips, loses 5 Chips per hand played', cost: 5, chipsRemaining: 100, effect: { type: 'ice_cream' } },
+            { id: 'j_cavendish', name: 'Cavendish', desc: 'x3 Mult (1 in 1000 chance to destroy)', cost: 8, effect: { type: 'xmult', val: 3 } },
+            { id: 'j_card_sharp', name: 'Card Sharp', desc: 'x3 Mult if hand type was already played this round', cost: 7, effect: { type: 'card_sharp', val: 3 } },
+            { id: 'j_ramen', name: 'Ramen', desc: 'x2 Mult, loses x0.05 Mult per discard', cost: 7, xmultVal: 2.0, effect: { type: 'ramen' } },
+            { id: 'j_abstract', name: 'Abstract Joker', desc: '+3 Mult for each Joker owned', cost: 5, effect: { type: 'abstract', val: 3 } }
+        ];
+
+        const BOSS_HANDICAPS = [
+            { id: 'spade_debuff', name: 'The Goad', desc: 'All Spade (♠) cards give 0 chips.' },
+            { id: 'must_five', name: 'The Needle', desc: 'Must play exactly 5 cards!' },
+            { id: 'one_hand', name: 'The Water', desc: 'Only 1 Hand allowed this round!' },
+            { id: 'halved_chips', name: 'The Wall', desc: 'Base Chips are halved!' }
+        ];
+
+        /* --- STATE ENGINE --- */
+        let globalPersistentState = {
+            wins: 0,
+            unlockedMeta: []
+        };
+
+        let gameState = {
+            selectedStake: STAKES[0],
+            ante: 1,
+            roundIndex: 0, // 0: Small, 1: Big, 2: Boss
+            money: 4,
+            score: 0,
+            targetScore: 300,
+            handsLeft: 4,
+            discardsLeft: 3,
+            maxHands: 4,
+            maxDiscards: 3,
+            maxHandSize: 8,
+            deck: [],
+            hand: [],
+            selectedIndices: [],
+            jokers: [],
+            planetHandLevels: JSON.parse(JSON.stringify(POKER_HANDS)),
+            shopItems: [],
+            rerollCost: 5,
+            bossModifier: null,
+            playedHandsThisRound: []
+        };
+
+        /* --- INIT ENGINE --- */
+        function loadPersistentState() {
+            try {
+                const saved = localStorage.getItem('balatro_global_meta');
+                if (saved) globalPersistentState = JSON.parse(saved);
+            } catch (e) { console.error(e); }
+        }
+
+        function savePersistentState() {
+            try {
+                localStorage.setItem('balatro_global_meta', JSON.stringify(globalPersistentState));
+            } catch (e) { console.error(e); }
+        }
+
+        function initGame() {
+            loadPersistentState();
+            renderStakeSelection();
+            renderMetaUpgrades();
+            document.getElementById('global-wins-count').innerText = `${globalPersistentState.wins} 🏆`;
+            
+            // If active run saved, load it
+            loadRunState();
+        }
+
+        function renderStakeSelection() {
+            const grid = document.getElementById('stake-selection-grid');
+            grid.innerHTML = '';
+            STAKES.forEach(s => {
+                const isSelected = gameState.selectedStake.id === s.id;
+                const btn = document.createElement('button');
+                btn.className = `p-2 rounded-xl text-left border text-xs transition ${isSelected ? 'bg-goldMain text-black border-goldLight font-bold' : 'bg-black/60 text-slate-300 border-goldDark/40'}`;
+                btn.innerHTML = `
+                    <div class="font-bold uppercase text-[10px]">${s.name}</div>
+                    <div class="text-[8px] opacity-80">${s.desc}</div>
+                `;
+                btn.onclick = () => {
+                    gameState.selectedStake = s;
+                    renderStakeSelection();
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        function renderMetaUpgrades() {
+            const grid = document.getElementById('meta-upgrades-grid');
+            grid.innerHTML = '';
+            META_UPGRADES.forEach(m => {
+                const isUnlocked = globalPersistentState.unlockedMeta.includes(m.id);
+                const card = document.createElement('div');
+                card.className = `bg-black/70 border ${isUnlocked ? 'border-emerald-500' : 'border-goldDark/40'} p-2.5 rounded-xl flex justify-between items-center text-xs`;
+                card.innerHTML = `
+                    <div>
+                        <div class="font-bold text-goldLight text-xs">${m.name} ${isUnlocked ? '✓' : ''}</div>
+                        <div class="text-[9px] text-slate-300">${m.desc}</div>
+                    </div>
+                    ${!isUnlocked ? `
+                        <button onclick="buyMetaUpgrade('${m.id}')" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg text-[10px]">
+                            ${m.cost} 🏆
+                        </button>
+                    ` : `<span class="text-[10px] text-emerald-400 font-bold">Unlocked</span>`}
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function buyMetaUpgrade(id) {
+            const m = META_UPGRADES.find(x => x.id === id);
+            if (!m) return;
+            if (globalPersistentState.wins >= m.cost && !globalPersistentState.unlockedMeta.includes(id)) {
+                globalPersistentState.wins -= m.cost;
+                globalPersistentState.unlockedMeta.push(id);
+                savePersistentState();
+                playSound('cash');
+                document.getElementById('global-wins-count').innerText = `${globalPersistentState.wins} 🏆`;
+                renderMetaUpgrades();
+            } else {
+                showToast('Not enough Wins!');
+            }
+        }
+
+        function startNewRunWithStake() {
+            closeModal('modal-menu');
+
+            // Apply meta bonuses
+            let bonusCash = globalPersistentState.unlockedMeta.includes('m_cash') ? 5 : 0;
+            let bonusDiscards = globalPersistentState.unlockedMeta.includes('m_discard') ? 1 : 0;
+
+            gameState.ante = 1;
+            gameState.roundIndex = 0;
+            gameState.money = 4 + bonusCash;
+            gameState.jokers = [JSON.parse(JSON.stringify(JOKER_CATALOG[0]))];
+            gameState.planetHandLevels = JSON.parse(JSON.stringify(POKER_HANDS));
+
+            // Meta bonuses to planet base hands
+            if (globalPersistentState.unlockedMeta.includes('m_mult')) {
+                Object.values(gameState.planetHandLevels).forEach(h => h.mult += 1);
+            }
+            if (globalPersistentState.unlockedMeta.includes('m_chips')) {
+                Object.values(gameState.planetHandLevels).forEach(h => h.chips += 10);
+            }
+
+            gameState.maxHands = 4 + (gameState.selectedStake.handsMod || 0);
+            gameState.maxDiscards = 3 + bonusDiscards;
+
+            document.getElementById('stake-indicator').innerText = `Stake: ${gameState.selectedStake.name}`;
+
+            setupRound();
+        }
+
+        function setupRound() {
+            const blindNames = ['Small Blind', 'Big Blind', 'The Boss'];
+            const name = blindNames[gameState.roundIndex];
+
+            let baseTarget = 300 * Math.pow(1.6, gameState.ante - 1) * gameState.selectedStake.mult;
+            if (gameState.roundIndex === 1) baseTarget *= 1.5;
+            if (gameState.roundIndex === 2) {
+                baseTarget *= 2;
+                gameState.bossModifier = BOSS_HANDICAPS[Math.floor(Math.random() * BOSS_HANDICAPS.length)];
+            } else {
+                gameState.bossModifier = null;
+            }
+
+            gameState.targetScore = Math.floor(baseTarget);
+            gameState.score = 0;
+            gameState.handsLeft = (gameState.bossModifier && gameState.bossModifier.id === 'one_hand') ? 1 : gameState.maxHands;
+            gameState.discardsLeft = gameState.maxDiscards;
+            gameState.selectedIndices = [];
+            gameState.playedHandsThisRound = [];
+
+            document.getElementById('blind-name').innerText = `${name} (Ante ${gameState.ante})`;
+            document.getElementById('stat-ante').innerText = `${gameState.ante}/8 (${name.split(' ')[0]})`;
+            
+            const bossBadge = document.getElementById('boss-badge');
+            if (gameState.bossModifier) {
+                bossBadge.classList.remove('hidden');
+                document.getElementById('blind-desc').innerText = `BOSS: ${gameState.bossModifier.name} - ${gameState.bossModifier.desc}`;
+            } else {
+                bossBadge.classList.add('hidden');
+                document.getElementById('blind-desc').innerText = 'Score at least target to pass.';
+            }
+
+            buildDeck();
+            shuffleDeck();
+            drawHand(gameState.maxHandSize);
+            updateUI();
+            saveRunState();
+        }
+
+        function buildDeck() {
+            gameState.deck = [];
+            for (let suit of SUITS) {
+                for (let rank of RANKS) {
+                    let val = parseInt(rank);
+                    if (['J', 'Q', 'K'].includes(rank)) val = 10;
+                    if (rank === 'A') val = 11;
+                    gameState.deck.push({ suit, rank, value: val, id: `${rank}${suit}-${Math.random()}` });
+                }
+            }
+
+            // Metaupgrade deck size master
+            if (globalPersistentState.unlockedMeta.includes('m_deck')) {
+                for (let i = 0; i < 4; i++) {
+                    gameState.deck.push({ suit: '♠', rank: 'A', value: 11, id: `bonus-A-${Math.random()}` });
+                }
+            }
+        }
+
+        function shuffleDeck() {
+            for (let i = gameState.deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [gameState.deck[i], gameState.deck[j]] = [gameState.deck[j], gameState.deck[i]];
+            }
+        }
+
+        function drawHand(num) {
+            while (gameState.hand.length < num && gameState.deck.length > 0) {
+                gameState.hand.push(gameState.deck.pop());
+            }
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('target-score').innerText = gameState.targetScore.toLocaleString();
+            document.getElementById('current-score').innerText = gameState.score.toLocaleString();
+            document.getElementById('stat-money').innerText = `$${gameState.money}`;
+            document.getElementById('stat-actions').innerText = `${gameState.handsLeft} / ${gameState.discardsLeft}`;
+            document.getElementById('deck-count-btn').innerText = gameState.deck.length + gameState.hand.length;
+            document.getElementById('hand-count-indicator').innerText = gameState.hand.length;
+            document.getElementById('hand-max-indicator').innerText = gameState.maxHandSize;
+
+            // Render Player Hand
+            const handContainer = document.getElementById('player-hand-container');
+            handContainer.innerHTML = '';
+            gameState.hand.forEach((card, idx) => {
+                const isSelected = gameState.selectedIndices.includes(idx);
+                const isRed = ['♥', '♦'].includes(card.suit);
+                
+                const isDebuffed = gameState.bossModifier && gameState.bossModifier.id === 'spade_debuff' && card.suit === '♠';
+
+                const cardWrap = document.createElement('div');
+                cardWrap.className = `card-container card-hover ${isSelected ? 'card-selected' : ''}`;
+                cardWrap.innerHTML = `
+                    <div class="card-inner w-14 sm:w-20 h-20 sm:h-28 bg-cardBg border-2 ${isSelected ? 'border-goldMain' : 'border-slate-300'} rounded-xl p-1.5 flex flex-col justify-between shadow-md ${isDebuffed ? 'card-debuffed' : ''}">
+                        <div class="font-bold text-xs sm:text-sm ${isRed ? 'text-red-600' : 'text-slate-900'} leading-none">${card.rank}</div>
+                        <div class="text-lg sm:text-2xl text-center ${isRed ? 'text-red-600' : 'text-slate-900'} leading-none">${card.suit}</div>
+                        <div class="font-bold text-xs sm:text-sm text-right ${isRed ? 'text-red-600' : 'text-slate-900'} leading-none">${card.rank}</div>
+                    </div>
+                `;
+                cardWrap.onclick = () => toggleSelectCard(idx);
+                handContainer.appendChild(cardWrap);
+            });
+
+            // Render Jokers
+            const jokersContainer = document.getElementById('jokers-container');
+            jokersContainer.innerHTML = '';
+            gameState.jokers.forEach((joker, idx) => {
+                const jEl = document.createElement('div');
+                jEl.className = 'w-16 h-22 rounded-xl bg-gradient-to-b from-purple-900 via-slate-950 to-black border border-goldDark/80 p-1 flex flex-col justify-between text-center shadow-lg relative group cursor-pointer';
+                jEl.innerHTML = `
+                    <div class="text-xs">🃏</div>
+                    <div class="text-[9px] font-bold text-goldLight truncate">${joker.name}</div>
+                    <div class="text-[8px] text-emerald-300 leading-tight">${joker.desc}</div>
+                    <button onclick="sellJoker(${idx}); event.stopPropagation();" class="hidden group-hover:block absolute -top-2 -right-2 bg-red-800 text-white text-[8px] px-1.5 py-0.5 rounded-full border border-red-400 shadow">Sell</button>
+                `;
+                jokersContainer.appendChild(jEl);
+            });
+            document.getElementById('joker-count').innerText = gameState.jokers.length;
+
+            // Buttons state & Boss constraint check
+            let canPlay = gameState.selectedIndices.length > 0 && gameState.handsLeft > 0;
+            if (gameState.bossModifier && gameState.bossModifier.id === 'must_five' && gameState.selectedIndices.length !== 5) {
+                canPlay = false;
+            }
+
+            document.getElementById('btn-play').disabled = !canPlay;
+            document.getElementById('btn-discard').disabled = gameState.selectedIndices.length === 0 || gameState.discardsLeft <= 0;
+
+            // Live Hand Calc Preview
+            if (gameState.selectedIndices.length > 0) {
+                const selectedCards = gameState.selectedIndices.map(i => gameState.hand[i]);
+                const evalResult = evaluatePokerHand(selectedCards);
+                document.getElementById('hand-type-name').innerText = evalResult.name;
+                document.getElementById('calc-chips').innerText = evalResult.chips;
+                document.getElementById('calc-mult').innerText = evalResult.mult;
+            } else {
+                document.getElementById('hand-type-name').innerText = 'Select Cards';
+                document.getElementById('calc-chips').innerText = '0';
+                document.getElementById('calc-mult').innerText = '0';
+            }
+        }
+
+        function toggleSelectCard(idx) {
+            playSound('card_select');
+            const p = gameState.selectedIndices.indexOf(idx);
+            if (p > -1) {
+                gameState.selectedIndices.splice(p, 1);
+            } else {
+                if (gameState.selectedIndices.length < 5) {
+                    gameState.selectedIndices.push(idx);
+                }
+            }
+            updateUI();
+        }
+
+        function sortHand(by) {
+            playSound('click');
+            const rankOrder = { '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '10':10, 'J':11, 'Q':12, 'K':13, 'A':14 };
+            const suitOrder = { '♠':1, '♥':2, '♦':3, '♣':4 };
+
+            gameState.hand.sort((a, b) => {
+                if (by === 'rank') return rankOrder[b.rank] - rankOrder[a.rank];
+                return suitOrder[a.suit] - suitOrder[b.suit];
+            });
+            gameState.selectedIndices = [];
+            updateUI();
+        }
+
+        function evaluatePokerHand(cards) {
+            if (cards.length === 0) return { name: 'High Card', chips: 5, mult: 1 };
+
+            const rankOrder = { '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '10':10, 'J':11, 'Q':12, 'K':13, 'A':14 };
+            const sorted = [...cards].sort((a, b) => rankOrder[b.rank] - rankOrder[a.rank]);
+
+            const ranks = sorted.map(c => c.rank);
+            const suits = sorted.map(c => c.suit);
+
+            const isFlush = suits.length === 5 && suits.every(s => s === suits[0]);
+            
+            let isStraight = false;
+            if (sorted.length === 5) {
+                let uniq = [...new Set(sorted.map(c => rankOrder[c.rank]))];
+                if (uniq.length === 5) {
+                    if (uniq[0] - uniq[4] === 4) isStraight = true;
+                    if (uniq.toString() === '14,5,4,3,2') isStraight = true;
+                }
+            }
+
+            const counts = {};
+            ranks.forEach(r => counts[r] = (counts[r] || 0) + 1);
+            const countVals = Object.values(counts).sort((a, b) => b - a);
+
+            let handName = 'High Card';
+            if (isFlush && countVals[0] === 3 && countVals[1] === 2) handName = 'Flush House';
+            else if (countVals[0] === 5) handName = 'Five of a Kind';
+            else if (isFlush && isStraight && sorted[0].rank === 'A') handName = 'Royal Flush';
+            else if (isFlush && isStraight) handName = 'Straight Flush';
+            else if (countVals[0] === 4) handName = 'Four of a Kind';
+            else if (countVals[0] === 3 && countVals[1] === 2) handName = 'Full House';
+            else if (isFlush) handName = 'Flush';
+            else if (isStraight) handName = 'Straight';
+            else if (countVals[0] === 3) handName = 'Three of a Kind';
+            else if (countVals[0] === 2 && countVals[1] === 2) handName = 'Two Pair';
+            else if (countVals[0] === 2) handName = 'Pair';
+
+            const base = gameState.planetHandLevels[handName] || POKER_HANDS[handName];
+            return { name: handName, chips: base.chips, mult: base.mult };
+        }
+
+        function discardCards() {
+            if (gameState.discardsLeft <= 0 || gameState.selectedIndices.length === 0) return;
+            playSound('click');
+
+            gameState.selectedIndices.sort((a, b) => b - a);
+            gameState.selectedIndices.forEach(i => gameState.hand.splice(i, 1));
+
+            // Joker ramen decay on discard
+            gameState.jokers.forEach(j => {
+                if (j.effect.type === 'ramen') j.xmultVal = Math.max(1.0, j.xmultVal - 0.05);
+            });
+
+            gameState.discardsLeft--;
+            gameState.selectedIndices = [];
+            drawHand(gameState.maxHandSize);
+        }
+
+        function playHand() {
+            if (gameState.handsLeft <= 0 || gameState.selectedIndices.length === 0) return;
+
+            const selectedCards = gameState.selectedIndices.map(i => gameState.hand[i]);
+            
+            // Remove played cards from hand
+            gameState.selectedIndices.sort((a, b) => b - a);
+            gameState.selectedIndices.forEach(i => gameState.hand.splice(i, 1));
+
+            const evalResult = evaluatePokerHand(selectedCards);
+            let chips = evalResult.chips;
+            let mult = evalResult.mult;
+
+            if (gameState.bossModifier && gameState.bossModifier.id === 'halved_chips') {
+                chips = Math.floor(chips / 2);
+            }
+
+            // Add rank values
+            selectedCards.forEach(c => {
+                let cardVal = c.value;
+                if (gameState.bossModifier && gameState.bossModifier.id === 'spade_debuff' && c.suit === '♠') {
+                    cardVal = 0;
+                }
+                chips += cardVal;
+            });
+
+            // Process Jokers & Help Cards Passive Effects
+            let xmultTotal = 1.0;
+
+            gameState.jokers.forEach(joker => {
+                const eff = joker.effect;
+                if (eff.type === 'add_mult') mult += eff.val;
+                else if (eff.type === 'suit_mult') {
+                    const match = selectedCards.filter(c => c.suit === eff.suit).length;
+                    mult += match * eff.val;
+                } else if (eff.type === 'hand_mult' && evalResult.name.includes(eff.hand)) mult += eff.val;
+                else if (eff.type === 'hand_chips' && evalResult.name.includes(eff.hand)) chips += eff.val;
+                else if (eff.type === 'half' && selectedCards.length <= 3) mult += eff.val;
+                else if (eff.type === 'banner') chips += gameState.discardsLeft * eff.val;
+                else if (eff.type === 'bull') chips += gameState.money * eff.val;
+                else if (eff.type === 'popcorn') mult += joker.multRemaining;
+                else if (eff.type === 'ice_cream') {
+                    chips += joker.chipsRemaining;
+                    joker.chipsRemaining = Math.max(0, joker.chipsRemaining - 5);
+                } else if (eff.type === 'xmult') xmultTotal *= eff.val;
+                else if (eff.type === 'card_sharp' && gameState.playedHandsThisRound.includes(evalResult.name)) xmultTotal *= eff.val;
+                else if (eff.type === 'ramen') xmultTotal *= joker.xmultVal;
+                else if (eff.type === 'abstract') mult += gameState.jokers.length * eff.val;
+            });
+
+            // Metaupgrade high roller
+            if (globalPersistentState.unlockedMeta.includes('m_global_mult')) {
+                xmultTotal *= 1.25;
+            }
+
+            // Record hand played
+            gameState.playedHandsThisRound.push(evalResult.name);
+
+            // Display played slot cards with animation
+            const slot = document.getElementById('played-cards-slot');
+            slot.innerHTML = '';
+            selectedCards.forEach((c, idx) => {
+                const isRed = ['♥', '♦'].includes(c.suit);
+                const cardEl = document.createElement('div');
+                cardEl.className = `w-14 sm:w-16 h-20 sm:h-24 bg-cardBg border-2 border-goldMain rounded-xl p-1.5 flex flex-col justify-between shadow-lg card-trigger`;
+                cardEl.style.animationDelay = `${idx * 0.1}s`;
+                cardEl.innerHTML = `
+                    <div class="font-bold text-xs ${isRed ? 'text-red-600' : 'text-slate-900'}">${c.rank}</div>
+                    <div class="text-lg text-center ${isRed ? 'text-red-600' : 'text-slate-900'}">${c.suit}</div>
+                    <div class="font-bold text-xs text-right ${isRed ? 'text-red-600' : 'text-slate-900'}">${c.rank}</div>
+                `;
+                slot.appendChild(cardEl);
+            });
+
+            const finalRoundScoreAdded = Math.floor(chips * mult * xmultTotal);
+            gameState.score += finalRoundScoreAdded;
+            gameState.handsLeft--;
+            gameState.selectedIndices = [];
+
+            // Spawn floating score text
+            spawnFloatScore(`+${finalRoundScoreAdded.toLocaleString()}`);
+
+            playSound('score_tick');
+            drawHand(gameState.maxHandSize);
+            updateUI();
+
+            // Check Win / Loss
+            setTimeout(() => {
+                if (gameState.score >= gameState.targetScore) {
+                    playSound('win');
+                    endRoundSuccess();
+                } else if (gameState.handsLeft <= 0) {
+                    endRoundFailure();
+                }
+            }, 600);
+        }
+
+        function spawnFloatScore(text) {
+            const layer = document.getElementById('floating-effects-layer');
+            const el = document.createElement('div');
+            el.className = 'absolute left-1/2 top-1/2 -translate-x-1/2 font-casino font-black text-2xl sm:text-4xl text-amber-300 float-score drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]';
+            el.innerText = text;
+            layer.appendChild(el);
+            setTimeout(() => el.remove(), 700);
+        }
+
+        function endRoundSuccess() {
+            // Degrade Popcorn joker if active
+            gameState.jokers.forEach(j => {
+                if (j.effect.type === 'popcorn') j.multRemaining = Math.max(0, j.multRemaining - 4);
+            });
+
+            // Calculate Interest: $1 per $5 up to $5 max
+            const interest = Math.min(5, Math.floor(gameState.money / 5));
+            const reward = 4 + gameState.handsLeft + interest;
+            gameState.money += reward;
+
+            playSound('cash');
+            showToast(`Blind Cleared! Earned $${reward} (Includes $${interest} Interest)`);
+
+            // If Ante 8 cleared, reward persistent win!
+            if (gameState.ante === 8 && gameState.roundIndex === 2) {
+                globalPersistentState.wins += 1;
+                savePersistentState();
+                showToast('🏆 CONGRATULATIONS! +1 PERSISTENT WIN UNLOCKED!');
+            }
+
+            document.getElementById('shop-interest-note').innerText = `Interest Earned: $${interest} (Current Cash: $${gameState.money})`;
+            gameState.rerollCost = 5;
+            generateShopItems();
+            openModal('modal-shop');
+        }
+
+        function endRoundFailure() {
+            document.getElementById('gameover-stats').innerText = `Ante ${gameState.ante} (${gameState.selectedStake.name})`;
+            openModal('modal-gameover');
+            localStorage.removeItem('balatro_run_state');
+        }
+
+        function generateShopItems() {
+            gameState.shopItems = [];
+            const cMult = gameState.selectedStake.jokerCostMult || 1.0;
+
+            // Random Jokers
+            for (let i = 0; i < 2; i++) {
+                const j = JSON.parse(JSON.stringify(JOKER_CATALOG[Math.floor(Math.random() * JOKER_CATALOG.length)]));
+                const price = Math.floor(j.cost * cMult);
+                gameState.shopItems.push({ type: 'joker', data: j, cost: price });
+            }
+
+            // Planet Level-up card
+            const handsList = Object.keys(POKER_HANDS);
+            const randomHand = handsList[Math.floor(Math.random() * handsList.length)];
+            gameState.shopItems.push({ type: 'planet', handName: randomHand, name: `Planet: ${randomHand}`, cost: 4 });
+
+            renderShop();
+        }
+
+        function renderShop() {
+            document.getElementById('shop-money').innerText = `$${gameState.money}`;
+            document.getElementById('btn-reroll-shop').innerText = `Reroll ($${gameState.rerollCost})`;
+            const grid = document.getElementById('shop-items-grid');
+            grid.innerHTML = '';
+
+            gameState.shopItems.forEach((item, idx) => {
+                const el = document.createElement('div');
+                el.className = 'bg-black/80 border border-goldDark/60 rounded-2xl p-3 flex flex-col justify-between items-center text-center gap-2 shadow-md';
+                
+                if (item.type === 'joker') {
+                    el.innerHTML = `
+                        <div class="text-2xl">🃏</div>
+                        <div class="font-bold text-xs text-goldLight">${item.data.name}</div>
+                        <div class="text-[9px] text-emerald-300 leading-tight">${item.data.desc}</div>
+                        <button onclick="buyShopItem(${idx})" class="w-full py-1.5 bg-gradient-to-b from-amber-400 to-goldDark text-black font-bold rounded-xl text-xs hover:brightness-110">
+                            Buy $${item.cost}
+                        </button>
+                    `;
+                } else if (item.type === 'planet') {
+                    el.innerHTML = `
+                        <div class="text-2xl">🪐</div>
+                        <div class="font-bold text-xs text-cyan-300">${item.name}</div>
+                        <div class="text-[9px] text-slate-300 leading-tight">+15 Chips, +2 Mult to ${item.handName}</div>
+                        <button onclick="buyShopItem(${idx})" class="w-full py-1.5 bg-gradient-to-b from-amber-400 to-goldDark text-black font-bold rounded-xl text-xs hover:brightness-110">
+                            Buy $${item.cost}
+                        </button>
+                    `;
+                }
+                grid.appendChild(el);
+            });
+        }
+
+        function buyShopItem(idx) {
+            const item = gameState.shopItems[idx];
+            if (!item) return;
+
+            if (gameState.money < item.cost) {
+                showToast('Not enough cash!');
+                return;
+            }
+
+            if (item.type === 'joker') {
+                if (gameState.jokers.length >= 5) {
+                    showToast('Joker slots full!');
+                    return;
+                }
+                gameState.jokers.push(item.data);
+            } else if (item.type === 'planet') {
+                const h = gameState.planetHandLevels[item.handName];
+                h.chips += 15;
+                h.mult += 2;
+                h.lvl++;
+                showToast(`Upgraded ${item.handName}!`);
+            }
+
+            gameState.money -= item.cost;
+            gameState.shopItems.splice(idx, 1);
+            playSound('cash');
+            renderShop();
+            updateUI();
+        }
+
+        function buyMysteryBox() {
+            if (gameState.money < 3) {
+                showToast('Need $3 for Mystery Box!');
+                return;
+            }
+            if (gameState.jokers.length >= 5) {
+                showToast('Joker slots full!');
+                return;
+            }
+            gameState.money -= 3;
+            const randJoker = JSON.parse(JSON.stringify(JOKER_CATALOG[Math.floor(Math.random() * JOKER_CATALOG.length)]));
+            gameState.jokers.push(randJoker);
+            playSound('cash');
+            showToast(`Mystery Unlocked: ${randJoker.name}!`);
+            renderShop();
+            updateUI();
+        }
+
+        function openTargetedJokerSelector() {
+            const grid = document.getElementById('targeted-jokers-grid');
+            grid.innerHTML = '';
+            const cMult = gameState.selectedStake.jokerCostMult || 1.0;
+
+            JOKER_CATALOG.forEach(j => {
+                const targetedCost = Math.floor(j.cost * 3 * cMult);
+                const el = document.createElement('div');
+                el.className = 'bg-black/80 border border-amber-500/50 p-2 rounded-xl text-center flex flex-col justify-between items-center';
+                el.innerHTML = `
+                    <div class="text-xs font-bold text-goldLight">${j.name}</div>
+                    <div class="text-[8px] text-slate-300 mt-1">${j.desc}</div>
+                    <button onclick="buyTargetedJoker('${j.id}')" class="mt-2 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg text-[10px]">
+                        Buy $${targetedCost}
+                    </button>
+                `;
+                grid.appendChild(el);
+            });
+            openModal('modal-targeted');
+        }
+
+        function buyTargetedJoker(id) {
+            const j = JOKER_CATALOG.find(x => x.id === id);
+            if (!j) return;
+            const cMult = gameState.selectedStake.jokerCostMult || 1.0;
+            const cost = Math.floor(j.cost * 3 * cMult);
+
+            if (gameState.money < cost) {
+                showToast('Not enough cash for Targeted buy!');
+                return;
+            }
+            if (gameState.jokers.length >= 5) {
+                showToast('Joker slots full!');
+                return;
+            }
+
+            gameState.money -= cost;
+            gameState.jokers.push(JSON.parse(JSON.stringify(j)));
+            playSound('cash');
+            showToast(`Bought Targeted ${j.name}!`);
+            closeModal('modal-targeted');
+            renderShop();
+            updateUI();
+        }
+
+        function sellJoker(idx) {
+            const j = gameState.jokers[idx];
+            if (!j) return;
+            gameState.money += Math.floor(j.cost / 2);
+            gameState.jokers.splice(idx, 1);
+            playSound('cash');
+            updateUI();
+        }
+
+        function rerollShop() {
+            if (gameState.money < gameState.rerollCost) {
+                showToast(`Need $${gameState.rerollCost} to reroll!`);
+                return;
+            }
+            gameState.money -= gameState.rerollCost;
+            gameState.rerollCost += 1;
+            playSound('click');
+            generateShopItems();
+        }
+
+        function advanceBlindFromShop() {
+            closeModal('modal-shop');
+            gameState.roundIndex++;
+            if (gameState.roundIndex > 2) {
+                gameState.roundIndex = 0;
+                gameState.ante++;
+                if (gameState.ante > 8) {
+                    document.getElementById('gameover-title').innerText = 'ROYAL CASINO VICTORY!';
+                    document.getElementById('gameover-desc').innerText = 'You conquered Ante 8!';
+                    openModal('modal-gameover');
+                    return;
+                }
+            }
+            setupRound();
+        }
+
+        /* --- CHEAT CONSOLE --- */
+        function executeConsoleCommand() {
+            const input = document.getElementById('console-input');
+            const cmd = input.value.trim().toLowerCase();
+            input.value = '';
+
+            if (cmd === 'idontknowhowtoplay') {
+                gameState.money += 100;
+                playSound('cash');
+                showToast('CHEAT: +$100 Cash Added!');
+            } else if (cmd === 'money') {
+                gameState.money = 0;
+                showToast('CHEAT: Cash set to $0!');
+            } else if (cmd === 'bankrupt') {
+                gameState.money = 0;
+                if (gameState.jokers.length > 0) gameState.jokers.pop();
+                showToast('CHEAT: Bankrupt executed!');
+            } else if (cmd === 'hardmode') {
+                gameState.targetScore = Math.floor(gameState.targetScore * 1.5);
+                showToast('CHEAT: Target score raised +50%!');
+            } else if (cmd === 'winnow') {
+                gameState.score = gameState.targetScore;
+                showToast('CHEAT: Blind Cleared!');
+                endRoundSuccess();
+                closeModal('modal-console');
+                return;
+            } else {
+                showToast('Unknown Command');
+            }
+
+            updateUI();
+            closeModal('modal-console');
+        }
+
+        function openModal(id) {
+            playSound('click');
+            document.getElementById(id).classList.remove('hidden');
+            if (id === 'modal-deck') renderDeckGrid();
+            if (id === 'modal-guide') renderGuideList();
+        }
+
+        function closeModal(id) {
+            playSound('click');
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function renderDeckGrid() {
+            const grid = document.getElementById('deck-viewer-grid');
+            grid.innerHTML = '';
+            const allCards = [...gameState.deck, ...gameState.hand];
+            allCards.forEach(c => {
+                const isRed = ['♥', '♦'].includes(c.suit);
+                const cardEl = document.createElement('div');
+                cardEl.className = 'h-16 bg-cardBg border border-slate-300 rounded-lg p-1 flex flex-col justify-between text-[10px] shadow-sm';
+                cardEl.innerHTML = `
+                    <div class="font-bold ${isRed ? 'text-red-600' : 'text-slate-900'}">${c.rank}</div>
+                    <div class="text-sm text-center ${isRed ? 'text-red-600' : 'text-slate-900'}">${c.suit}</div>
+                `;
+                grid.appendChild(cardEl);
+            });
+        }
+
+        function renderGuideList() {
+            const list = document.getElementById('poker-guide-list');
+            list.innerHTML = '';
+            Object.entries(gameState.planetHandLevels).forEach(([handName, data]) => {
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-center bg-black/70 px-3 py-2 rounded-xl border border-goldDark/40';
+                row.innerHTML = `
+                    <span class="font-bold text-goldLight">${handName} <span class="text-[9px] text-emerald-400">(Lvl ${data.lvl})</span></span>
+                    <span class="text-cyan-300 font-bold">${data.chips} Chips × ${data.mult} Mult</span>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        function showToast(text) {
+            const toast = document.getElementById('toast-box');
+            toast.innerText = text;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 2400);
+        }
+
+        function saveRunState() {
+            try {
+                localStorage.setItem('balatro_run_state', JSON.stringify(gameState));
+            } catch (e) { console.error(e); }
+        }
+
+        function loadRunState() {
+            try {
+                const saved = localStorage.getItem('balatro_run_state');
+                if (saved) {
+                    gameState = JSON.parse(saved);
+                    updateUI();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function restartRun() {
+            closeModal('modal-gameover');
+            openModal('modal-menu');
+        }
+
+        window.onload = function() {
+            initGame();
+        };
+    </script>
+</body>
+</html>
